@@ -4,7 +4,6 @@ package heimdall
 import (
 	"context"
 	"log/slog"
-	"net/http"
 
 	"github.com/arthurdotwork/heimdall/internal/config"
 	internalMiddleware "github.com/arthurdotwork/heimdall/internal/middleware"
@@ -23,23 +22,13 @@ type Gateway struct {
 	registry          *internalMiddleware.Registry
 }
 
-// Config exposes configuration types to public API
-type Config = config.Config
-type GatewayConfig = config.GatewayConfig
-type EndpointConfig = config.EndpointConfig
-
-// Middleware defines the contract for middleware components in Heimdall
-type Middleware interface {
-	Wrap(next http.Handler) http.Handler
-}
-
-// MiddlewareFunc is a function type that implements the Middleware interface
-type MiddlewareFunc func(http.Handler) http.Handler
-
-// Wrap implements the Middleware interface for MiddlewareFunc
-func (f MiddlewareFunc) Wrap(next http.Handler) http.Handler {
-	return f(next)
-}
+type (
+	Config         = config.Config
+	GatewayConfig  = config.GatewayConfig
+	EndpointConfig = config.EndpointConfig
+	Middleware     = internalMiddleware.Middleware
+	MiddlewareFunc = internalMiddleware.Func
+)
 
 // New creates a new gateway instance
 func New(configPath string) (*Gateway, error) {
@@ -131,11 +120,6 @@ var defaultRegistry = internalMiddleware.NewRegistry()
 // RegisterMiddleware registers a middleware with the default registry
 func RegisterMiddleware(name string, middleware Middleware) error {
 	return defaultRegistry.Register(name, middleware)
-}
-
-// ResetDefaultRegistry resets the default registry (primarily for testing)
-func ResetDefaultRegistry() {
-	defaultRegistry = internalMiddleware.NewRegistry()
 }
 
 // LoadFromFile loads configuration from a file

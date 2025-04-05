@@ -100,10 +100,6 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("it should load middleware from config", func(t *testing.T) {
-		// Reset the default registry for this test
-		heimdall.ResetDefaultRegistry()
-
-		// Create test middleware
 		var globalMiddlewareExecuted, endpointMiddlewareExecuted bool
 
 		globalMiddleware := heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
