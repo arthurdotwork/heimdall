@@ -2,6 +2,8 @@ gateway:
   port: 8080
   readTimeout: 5s
   writeTimeout: 5s
+  middlewares:
+    - logger      # Global middleware applied to all endpoints
 
 endpoints:
   - name: HTTPBin
@@ -14,3 +16,11 @@ endpoints:
         - AnotherValue
     allowed_headers:
       - X-Another-Header
+    middlewares:
+      - cors      # Per-endpoint middleware
+      - auth      # Another per-endpoint middleware
+
+  - name: PostEndpoint
+    path: /post
+    target: https://httpbin.org/post
+    method: POST

@@ -12,6 +12,7 @@ type GatewayConfig struct {
 	ReadTimeout     time.Duration `yaml:"read_timeout"`
 	WriteTimeout    time.Duration `yaml:"write_timeout"`
 	ShutdownTimeout time.Duration `yaml:"shutdown_timeout"`
+	Middlewares     []string      `yaml:"middlewares"` // Global middlewares
 }
 
 type EndpointConfig struct {
@@ -20,6 +21,7 @@ type EndpointConfig struct {
 	Method         string              `yaml:"method"`
 	Headers        map[string][]string `yaml:"headers"`
 	AllowedHeaders []string            `yaml:"allowed_headers"`
+	Middlewares    []string            `yaml:"middlewares"` // Per-endpoint middlewares
 }
 
 type Config struct {
