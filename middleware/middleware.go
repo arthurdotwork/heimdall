@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"github.com/arthurdotwork/heimdall"
+	"github.com/arthurdotwork/heimdall/internal/middleware"
 )
 
 // RegisterDefaults registers the default middleware with the global registry
@@ -14,7 +15,7 @@ func RegisterDefaults() {
 }
 
 // Register registers the middleware with a custom registry
-func Register(registry *heimdall.MiddlewareRegistry) {
+func Register(registry *middleware.MiddlewareRegistry) {
 	// Register Logger middleware
 	_ = registry.Register("logger", Logger())
 

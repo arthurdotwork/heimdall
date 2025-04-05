@@ -1,4 +1,4 @@
-package heimdall_test
+package server_test
 
 import (
 	"context"
@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/arthurdotwork/heimdall"
+	"github.com/arthurdotwork/heimdall/internal/config"
+	"github.com/arthurdotwork/heimdall/internal/server"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +22,7 @@ func TestServer_Start(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		server := heimdall.NewServer(heimdall.GatewayConfig{Port: 8081}, handler)
+		server := server.NewServer(config.GatewayConfig{Port: 8081}, handler)
 
 		// We start the server in a goroutine
 		done := make(chan error, 1)
@@ -51,7 +52,7 @@ func TestServer_Start(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		server := heimdall.NewServer(heimdall.GatewayConfig{Port: 8082}, handler)
+		server := server.NewServer(config.GatewayConfig{Port: 8082}, handler)
 
 		startTime := time.Now()
 		err := server.Start(ctx)
@@ -77,7 +78,7 @@ func TestServer_Start(t *testing.T) {
 			}
 		})
 
-		server := heimdall.NewServer(heimdall.GatewayConfig{Port: 8083, ShutdownTimeout: 2 * time.Second}, handler)
+		server := server.NewServer(config.GatewayConfig{Port: 8083, ShutdownTimeout: 2 * time.Second}, handler)
 
 		serverDone := make(chan error, 1)
 		go func() {

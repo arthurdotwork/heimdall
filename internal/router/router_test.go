@@ -1,11 +1,13 @@
-package heimdall_test
+package router_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/arthurdotwork/heimdall"
+	"github.com/arthurdotwork/heimdall/internal/config"
+	"github.com/arthurdotwork/heimdall/internal/middleware"
+	"github.com/arthurdotwork/heimdall/internal/router"
 	"github.com/stretchr/testify/require"
 )
 
@@ -13,16 +15,16 @@ func TestNewRouter(t *testing.T) {
 	t.Parallel()
 
 	t.Run("it should return an error if it can not parse the target URL", func(t *testing.T) {
-		endpoints := []heimdall.EndpointConfig{{Target: "://invalid"}}
+		endpoints := []config.EndpointConfig{{Target: "://invalid"}}
 
-		_, err := heimdall.NewRouter(endpoints)
+		_, err := router.NewRouter(endpoints)
 		require.Error(t, err)
 	})
 
 	t.Run("it should build the router", func(t *testing.T) {
-		endpoints := []heimdall.EndpointConfig{{Path: "/", Target: "https://www.google.com/", Method: "GET"}}
+		endpoints := []config.EndpointConfig{{Path: "/", Target: "https://www.google.com/", Method: "GET"}}
 
-		router, err := heimdall.NewRouter(endpoints)
+		router, err := router.NewRouter(endpoints)
 		require.NoError(t, err)
 		require.NotNil(t, router)
 		require.NotEmpty(t, router.Routes)
@@ -33,18 +35,18 @@ func TestNewRouter(t *testing.T) {
 	})
 
 	t.Run("it should build router with middleware", func(t *testing.T) {
-		heimdall.ResetDefaultRegistry()
+		middleware.ResetDefaultRegistry()
 
-		testMiddleware := heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
+		testMiddleware := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Test", "test-value")
 				next.ServeHTTP(w, r)
 			})
 		})
 
-		_ = heimdall.RegisterMiddleware("test-middleware", testMiddleware)
+		_ = middleware.RegisterMiddleware("test-middleware", testMiddleware)
 
-		endpoints := []heimdall.EndpointConfig{
+		endpoints := []config.EndpointConfig{
 			{
 				Path:        "/",
 				Target:      "https://www.example.com/",
@@ -53,7 +55,7 @@ func TestNewRouter(t *testing.T) {
 			},
 		}
 
-		router, err := heimdall.NewRouter(endpoints)
+		router, err := router.NewRouter(endpoints)
 		require.NoError(t, err)
 		require.NotNil(t, router)
 
@@ -66,8 +68,8 @@ func TestNewRouter(t *testing.T) {
 func TestRouter_GetRoute(t *testing.T) {
 	t.Parallel()
 
-	endpoints := []heimdall.EndpointConfig{{Path: "/foo", Method: "GET"}}
-	router, err := heimdall.NewRouter(endpoints)
+	endpoints := []config.EndpointConfig{{Path: "/foo", Method: "GET"}}
+	router, err := router.NewRouter(endpoints)
 	require.NoError(t, err)
 
 	t.Run("it should return an error if it can not find the route by path", func(t *testing.T) {
@@ -95,15 +97,15 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 	t.Parallel()
 
 	t.Run("it should apply global middleware to all routes", func(t *testing.T) {
-		endpoints := []heimdall.EndpointConfig{
+		endpoints := []config.EndpointConfig{
 			{Path: "/foo", Target: "http://example.com", Method: "GET"},
 			{Path: "/bar", Target: "http://example.com", Method: "POST"},
 		}
 
-		router, err := heimdall.NewRouter(endpoints)
+		router, err := router.NewRouter(endpoints)
 		require.NoError(t, err)
 
-		globalMiddleware := heimdall.NewMiddlewareChain()
+		globalMiddleware := middleware.NewMiddlewareChain()
 		globalMiddleware.AddFunc(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Global", "true")
@@ -133,18 +135,18 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 	})
 
 	t.Run("it should combine global and route-specific middleware", func(t *testing.T) {
-		heimdall.ResetDefaultRegistry()
+		middleware.ResetDefaultRegistry()
 
-		routeMiddleware := heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
+		routeMiddleware := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Route", "true")
 				next.ServeHTTP(w, r)
 			})
 		})
 
-		_ = heimdall.RegisterMiddleware("route-middleware", routeMiddleware)
+		_ = middleware.RegisterMiddleware("route-middleware", routeMiddleware)
 
-		endpoints := []heimdall.EndpointConfig{
+		endpoints := []config.EndpointConfig{
 			{
 				Path:        "/with-middleware",
 				Target:      "http://example.com",
@@ -158,10 +160,10 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 			},
 		}
 
-		router, err := heimdall.NewRouter(endpoints)
+		router, err := router.NewRouter(endpoints)
 		require.NoError(t, err)
 
-		globalMiddleware := heimdall.NewMiddlewareChain()
+		globalMiddleware := middleware.NewMiddlewareChain()
 		globalMiddleware.AddFunc(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Global", "true")
@@ -201,11 +203,11 @@ func TestRouter_SetHandler(t *testing.T) {
 	t.Parallel()
 
 	t.Run("it should set a handler for a route", func(t *testing.T) {
-		endpoints := []heimdall.EndpointConfig{
+		endpoints := []config.EndpointConfig{
 			{Path: "/test", Target: "http://example.com", Method: "GET"},
 		}
 
-		router, err := heimdall.NewRouter(endpoints)
+		router, err := router.NewRouter(endpoints)
 		require.NoError(t, err)
 
 		route, exists := router.GetRoute("/test", "GET")

@@ -1,4 +1,4 @@
-package heimdall
+package middleware
 
 import (
 	"fmt"
@@ -59,9 +59,6 @@ func (r *MiddlewareRegistry) GetMultiple(names []string) ([]Middleware, []string
 	return result, missing
 }
 
-// defaultRegistry is the default middleware registry
-var defaultRegistry = NewMiddlewareRegistry()
-
 // RegisterMiddleware registers a middleware with the default registry
 func RegisterMiddleware(name string, middleware Middleware) error {
 	return defaultRegistry.Register(name, middleware)
@@ -81,3 +78,18 @@ func GetMiddlewares(names []string) ([]Middleware, []string) {
 func ResetDefaultRegistry() {
 	defaultRegistry = NewMiddlewareRegistry()
 }
+
+// DefaultRegistry returns the default middleware registry
+func DefaultRegistry() *MiddlewareRegistry {
+	// Use a sync.Once to initialize only once
+	defaultRegistryOnce.Do(func() {
+		defaultRegistry = NewMiddlewareRegistry()
+	})
+	return defaultRegistry
+}
+
+// The actual variable is private
+var (
+	defaultRegistry     *MiddlewareRegistry
+	defaultRegistryOnce sync.Once
+)

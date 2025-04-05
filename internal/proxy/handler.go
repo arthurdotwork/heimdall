@@ -1,4 +1,4 @@
-package heimdall
+package proxy
 
 import (
 	"context"
@@ -6,13 +6,16 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+
+	"github.com/arthurdotwork/heimdall/internal/middleware"
+	"github.com/arthurdotwork/heimdall/internal/router"
 )
 
 const defaultUserAgent = "Heimdall/0.1"
 
 type ProxyRouter interface {
-	GetRoute(path, method string) (*Route, bool)
-	ApplyGlobalMiddleware(middlewareChain *MiddlewareChain, finalHandler http.Handler)
+	GetRoute(path, method string) (*router.Route, bool)
+	ApplyGlobalMiddleware(middlewareChain *middleware.MiddlewareChain, finalHandler http.Handler)
 }
 
 type ProxyHandler struct {
@@ -56,7 +59,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 // InitializeRouteHandlers initializes handlers for all routes with middleware
-func (p *ProxyHandler) InitializeRouteHandlers(globalMiddleware *MiddlewareChain) {
+func (p *ProxyHandler) InitializeRouteHandlers(globalMiddleware *middleware.MiddlewareChain) {
 	p.router.ApplyGlobalMiddleware(globalMiddleware, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		route, ok := p.router.GetRoute(req.URL.Path, req.Method)
 		if !ok {
@@ -68,7 +71,7 @@ func (p *ProxyHandler) InitializeRouteHandlers(globalMiddleware *MiddlewareChain
 	}))
 }
 
-func (p *ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, route *Route) {
+func (p *ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, route *router.Route) {
 	// Create a new URL based on the target
 	targetURL := &url.URL{
 		Scheme:   route.Target.Scheme,
@@ -106,7 +109,7 @@ func (p *ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, ro
 	proxy.ServeHTTP(w, req)
 }
 
-func (p *ProxyHandler) processHeaders(req *http.Request, route *Route) {
+func (p *ProxyHandler) processHeaders(req *http.Request, route *router.Route) {
 	allowedHeaderValues := make(map[string][]string)
 	for _, allowedHeader := range route.AllowedHeaders {
 		if values, exists := req.Header[allowedHeader]; exists {

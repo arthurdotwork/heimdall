@@ -5,12 +5,32 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/arthurdotwork/heimdall"
+	"github.com/arthurdotwork/heimdall/internal/middleware"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
+
+func createTempConfig(t *testing.T, config map[string]any) string {
+	file, err := os.CreateTemp("", "config-*.yaml")
+	require.NoError(t, err)
+	defer file.Close() //nolint:errcheck
+
+	yamlMarshalled, err := yaml.Marshal(config)
+	require.NoError(t, err)
+
+	_, err = file.Write(yamlMarshalled)
+	require.NoError(t, err)
+
+	err = file.Sync()
+	require.NoError(t, err)
+
+	return file.Name()
+}
 
 func TestNew(t *testing.T) {
 	t.Parallel()
@@ -143,7 +163,7 @@ func TestNew(t *testing.T) {
 
 		// Get the global middleware chain from gateway (requires unexported access)
 		// Since we can't directly access this, we'll create our own chain for testing
-		globalChain := heimdall.NewMiddlewareChain()
+		globalChain := middleware.NewMiddlewareChain()
 		globalChain.Add(globalMiddleware)
 
 		// Add endpoint middleware
@@ -172,7 +192,7 @@ func TestNewWithRegistry(t *testing.T) {
 
 	t.Run("it should initialize gateway with custom registry", func(t *testing.T) {
 		// Create a custom registry
-		registry := heimdall.NewMiddlewareRegistry()
+		registry := middleware.NewMiddlewareRegistry()
 
 		// Register test middleware
 		testMiddleware := heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
@@ -213,7 +233,7 @@ func TestNewWithRegistry(t *testing.T) {
 	})
 
 	t.Run("it should handle missing middleware", func(t *testing.T) {
-		registry := heimdall.NewMiddlewareRegistry()
+		registry := middleware.NewMiddlewareRegistry()
 
 		config := map[string]any{
 			"gateway": map[string]any{

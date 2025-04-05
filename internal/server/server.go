@@ -1,4 +1,4 @@
-package heimdall
+package server
 
 import (
 	"context"
@@ -8,20 +8,22 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/arthurdotwork/heimdall/internal/config"
+	"github.com/arthurdotwork/heimdall/internal/middleware"
 	"golang.org/x/sync/errgroup"
 )
 
 type Server struct {
-	cfg         GatewayConfig
+	cfg         config.GatewayConfig
 	handler     http.Handler
-	middlewares *MiddlewareChain
+	middlewares *middleware.MiddlewareChain
 }
 
-func NewServer(cfg GatewayConfig, handler http.Handler) *Server {
+func NewServer(cfg config.GatewayConfig, handler http.Handler) *Server {
 	return &Server{
 		cfg:         cfg,
 		handler:     handler,
-		middlewares: NewMiddlewareChain(),
+		middlewares: middleware.NewMiddlewareChain(),
 	}
 }
 

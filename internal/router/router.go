@@ -1,9 +1,12 @@
-package heimdall
+package router
 
 import (
 	"log/slog"
 	"net/http"
 	"net/url"
+
+	"github.com/arthurdotwork/heimdall/internal/config"
+	"github.com/arthurdotwork/heimdall/internal/middleware"
 )
 
 type Route struct {
@@ -12,23 +15,23 @@ type Route struct {
 	Method         string
 	Headers        map[string][]string
 	AllowedHeaders []string
-	Middleware     []string         // Middleware names for this route
-	Middlewares    *MiddlewareChain // Resolved middleware chain
-	Handler        http.Handler     // Final handler after middleware (now exported)
+	Middleware     []string                    // Middleware names for this route
+	Middlewares    *middleware.MiddlewareChain // Resolved middleware chain
+	Handler        http.Handler                // Final handler after middleware (now exported)
 }
 
 type Router struct {
 	// Routes is a map that index the route by path and method.
 	Routes map[string]map[string]*Route
 	// Registry for middleware
-	registry *MiddlewareRegistry
+	registry *middleware.MiddlewareRegistry
 }
 
-func NewRouter(endpoints []EndpointConfig) (*Router, error) {
-	return NewRouterWithRegistry(endpoints, defaultRegistry)
+func NewRouter(endpoints []config.EndpointConfig) (*Router, error) {
+	return NewRouterWithRegistry(endpoints, middleware.DefaultRegistry())
 }
 
-func NewRouterWithRegistry(endpoints []EndpointConfig, registry *MiddlewareRegistry) (*Router, error) {
+func NewRouterWithRegistry(endpoints []config.EndpointConfig, registry *middleware.MiddlewareRegistry) (*Router, error) {
 	routes := make(map[string]map[string]*Route)
 
 	for _, endpoint := range endpoints {
@@ -48,7 +51,7 @@ func NewRouterWithRegistry(endpoints []EndpointConfig, registry *MiddlewareRegis
 			Headers:        endpoint.Headers,
 			AllowedHeaders: endpoint.AllowedHeaders,
 			Middleware:     endpoint.Middlewares,
-			Middlewares:    NewMiddlewareChain(),
+			Middlewares:    middleware.NewMiddlewareChain(),
 		}
 	}
 
@@ -99,7 +102,7 @@ func (r *Router) SetHandler(route *Route, handler http.Handler) {
 }
 
 // ApplyGlobalMiddleware applies global middleware to all routes
-func (r *Router) ApplyGlobalMiddleware(middlewareChain *MiddlewareChain, finalHandler http.Handler) {
+func (r *Router) ApplyGlobalMiddleware(middlewareChain *middleware.MiddlewareChain, finalHandler http.Handler) {
 	for _, methodRoutes := range r.Routes {
 		for _, route := range methodRoutes {
 			// Clone the global middleware chain
