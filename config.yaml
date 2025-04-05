@@ -1,0 +1,14 @@
+gateway:
+  port: 8080
+  readTimeout: 5s
+  writeTimeout: 5s
+
+endpoints:
+  - name: HTTPBin
+    path: /httpbin
+    target: https://httpbin.org/get
+    method: GET
+    headers:
+      X-My-Header: MyValue
+    allowed_headers:
+      - X-Another-Header
