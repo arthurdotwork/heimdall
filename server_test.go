@@ -101,6 +101,7 @@ func TestServer_Start(t *testing.T) {
 		cancel()
 
 		serverError := <-serverDone
-		require.Error(t, context.DeadlineExceeded, serverError)
+		require.Error(t, serverError)
+		require.ErrorIs(t, context.DeadlineExceeded, serverError)
 	})
 }
