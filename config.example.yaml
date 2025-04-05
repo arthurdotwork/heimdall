@@ -3,12 +3,13 @@ gateway:
   readTimeout: 5s
   writeTimeout: 5s
   middlewares:
-    - logger      # Global middleware applied to all endpoints
+    - logger
+    - cors
 
 endpoints:
   - name: HTTPBin
     path: /httpbin
-    target: https://httpbin.org/get
+    target: https://postman-echo.com/get
     method: GET
     headers:
       X-My-Header:
@@ -16,11 +17,16 @@ endpoints:
         - AnotherValue
     allowed_headers:
       - X-Another-Header
-    middlewares:
-      - cors      # Per-endpoint middleware
-      - auth      # Another per-endpoint middleware
+      - X-Request-Id
 
   - name: PostEndpoint
     path: /post
     target: https://httpbin.org/post
     method: POST
+
+  - name: Authenticated HTTPBin
+    path: /auth/httpbin
+    target: https://httpbin.org/get
+    method: GET
+    middlewares:
+      - basicAuth
