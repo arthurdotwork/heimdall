@@ -28,6 +28,8 @@ func main() {
 	// Register default middleware with the global registry
 	middleware.RegisterDefaults()
 
+	_ = heimdall.RegisterMiddleware("basicAuth", requireBasicAuthMiddleware())
+
 	gateway, err := heimdall.New(*configPath)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create gateway", "error", err)
@@ -58,10 +60,25 @@ func createCustomMiddleware() heimdall.Middleware {
 			ctx := context.WithValue(r.Context(), requestIDKey{}, requestID)
 
 			// Add request ID to response headers
-			w.Header().Set("X-Request-ID", requestID)
+			w.Header().Set("X-Request-Id", requestID)
+			r.Header.Set("X-Request-Id", requestID)
 
 			// Continue with the modified context
 			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	})
+}
+
+func requireBasicAuthMiddleware() heimdall.Middleware {
+	return heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			username, password, ok := r.BasicAuth()
+			if !ok || username != "admin" || password != "password" {
+				w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
 		})
 	})
 }
