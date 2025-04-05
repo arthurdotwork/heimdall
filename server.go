@@ -12,24 +12,29 @@ import (
 )
 
 type Server struct {
-	cfg     GatewayConfig
-	handler http.Handler
+	cfg         GatewayConfig
+	handler     http.Handler
+	middlewares *MiddlewareChain
 }
 
 func NewServer(cfg GatewayConfig, handler http.Handler) *Server {
 	return &Server{
-		cfg:     cfg,
-		handler: handler,
+		cfg:         cfg,
+		handler:     handler,
+		middlewares: NewMiddlewareChain(),
 	}
 }
 
 func (s *Server) Start(ctx context.Context) error {
 	reqCtx, cancelRequest := context.WithCancel(context.Background())
 
+	// Apply middleware chain to the handler
+	finalHandler := s.middlewares.Then(s.handler)
+
 	// Create the HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", s.cfg.Port),
-		Handler:      s.handler,
+		Handler:      finalHandler,
 		ReadTimeout:  s.cfg.ReadTimeout,
 		WriteTimeout: s.cfg.WriteTimeout,
 		BaseContext: func(_ net.Listener) context.Context {

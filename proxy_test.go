@@ -36,6 +36,14 @@ func (m *mockRouter) GetRoute(path, method string) (*heimdall.Route, bool) {
 	return nil, false
 }
 
+func (m *mockRouter) ApplyGlobalMiddleware(middlewareChain *heimdall.MiddlewareChain, finalHandler http.Handler) {
+	for _, methodRoutes := range m.routes {
+		for _, route := range methodRoutes {
+			route.Handler = middlewareChain.Then(finalHandler)
+		}
+	}
+}
+
 func TestProxyHandler_Serve(t *testing.T) {
 	t.Parallel()
 
@@ -195,5 +203,96 @@ func TestProxyHandler_Serve(t *testing.T) {
 		require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 		require.Equal(t, "close", recorder.Header().Get("Connection"))
 		require.Contains(t, recorder.Body.String(), "Gateway is shutting down")
+	})
+
+	t.Run("it should use route's handler if set", func(t *testing.T) {
+		mockRouter := &mockRouter{}
+
+		route := &heimdall.Route{
+			Method: http.MethodGet,
+		}
+
+		customHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Custom-Handler", "true")
+			w.WriteHeader(http.StatusOK)
+		})
+
+		middlewareChain := heimdall.NewMiddlewareChain()
+
+		route.Handler = middlewareChain.Then(customHandler)
+
+		mockRouter.addRoute("/custom", http.MethodGet, route)
+
+		proxy := heimdall.NewProxyHandler(mockRouter)
+
+		req := httptest.NewRequest(http.MethodGet, "/custom", nil)
+		rec := httptest.NewRecorder()
+
+		proxy.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "true", rec.Header().Get("X-Custom-Handler"))
+	})
+
+	t.Run("it should initialize route handlers with middleware", func(t *testing.T) {
+		// Create a test backend server that returns a specific response
+		testBackend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Echo back any headers with X-Echo- prefix
+			for name, values := range r.Header {
+				if len(name) >= 7 && name[:7] == "X-Echo-" {
+					for _, value := range values {
+						w.Header().Set(name, value)
+					}
+				}
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("OK from backend")) //nolint:errcheck
+		}))
+		defer testBackend.Close()
+
+		backendURL, _ := url.Parse(testBackend.URL)
+
+		// Create a mock router with our test route
+		mockRouter := &mockRouter{}
+		route := &heimdall.Route{
+			Target:         backendURL,
+			Method:         http.MethodGet,
+			Middlewares:    heimdall.NewMiddlewareChain(),
+			AllowedHeaders: []string{"X-Echo-Global-Middleware"}, // Allow our test header!
+		}
+		mockRouter.addRoute("/test", http.MethodGet, route)
+
+		// Create the proxy handler
+		proxy := heimdall.NewProxyHandler(mockRouter)
+
+		// Create middleware that adds headers to the request
+		middlewareChain := heimdall.NewMiddlewareChain()
+		middlewareChain.AddFunc(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Add a header that will be forwarded to the backend
+				r.Header.Set("X-Echo-Global-Middleware", "true")
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		// Initialize route handlers with middleware
+		proxy.InitializeRouteHandlers(middlewareChain)
+
+		// Ensure the route has a handler
+		require.NotNil(t, route.Handler, "Route should have a handler after initialization")
+
+		// Now make a request through the route's handler
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		route.Handler.ServeHTTP(rec, req)
+
+		// Verify the response
+		require.Equal(t, http.StatusOK, rec.Code, "Should return OK status")
+		require.Equal(t, "OK from backend", rec.Body.String(), "Should return the backend response")
+
+		// Check that our middleware header was passed to the backend and echoed back
+		require.Equal(t, "true", rec.Header().Get("X-Echo-Global-Middleware"),
+			"Middleware header should be passed to backend and echoed back")
 	})
 }

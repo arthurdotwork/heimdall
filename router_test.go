@@ -1,6 +1,8 @@
 package heimdall_test
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/arthurdotwork/heimdall"
@@ -29,6 +31,36 @@ func TestNewRouter(t *testing.T) {
 		require.Equal(t, "GET", router.Routes["/"]["GET"].Method)
 		require.Equal(t, "https://www.google.com/", router.Routes["/"]["GET"].Target.String())
 	})
+
+	t.Run("it should build router with middleware", func(t *testing.T) {
+		heimdall.ResetDefaultRegistry()
+
+		testMiddleware := heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Test", "test-value")
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		_ = heimdall.RegisterMiddleware("test-middleware", testMiddleware)
+
+		endpoints := []heimdall.EndpointConfig{
+			{
+				Path:        "/",
+				Target:      "https://www.example.com/",
+				Method:      "GET",
+				Middlewares: []string{"test-middleware"},
+			},
+		}
+
+		router, err := heimdall.NewRouter(endpoints)
+		require.NoError(t, err)
+		require.NotNil(t, router)
+
+		route, exists := router.GetRoute("/", "GET")
+		require.True(t, exists)
+		require.Equal(t, []string{"test-middleware"}, route.Middleware)
+	})
 }
 
 func TestRouter_GetRoute(t *testing.T) {
@@ -56,5 +88,146 @@ func TestRouter_GetRoute(t *testing.T) {
 		require.NotNil(t, route)
 		require.Equal(t, "/foo", route.OriginalPath)
 		require.Equal(t, "GET", route.Method)
+	})
+}
+
+func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
+	t.Parallel()
+
+	t.Run("it should apply global middleware to all routes", func(t *testing.T) {
+		endpoints := []heimdall.EndpointConfig{
+			{Path: "/foo", Target: "http://example.com", Method: "GET"},
+			{Path: "/bar", Target: "http://example.com", Method: "POST"},
+		}
+
+		router, err := heimdall.NewRouter(endpoints)
+		require.NoError(t, err)
+
+		globalMiddleware := heimdall.NewMiddlewareChain()
+		globalMiddleware.AddFunc(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Global", "true")
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		router.ApplyGlobalMiddleware(globalMiddleware, finalHandler)
+
+		fooRoute, _ := router.GetRoute("/foo", "GET")
+		require.NotNil(t, fooRoute.Handler)
+
+		barRoute, _ := router.GetRoute("/bar", "POST")
+		require.NotNil(t, barRoute.Handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/foo", nil)
+		rec := httptest.NewRecorder()
+
+		fooRoute.Handler.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "true", rec.Header().Get("X-Global"))
+	})
+
+	t.Run("it should combine global and route-specific middleware", func(t *testing.T) {
+		heimdall.ResetDefaultRegistry()
+
+		routeMiddleware := heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Route", "true")
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		_ = heimdall.RegisterMiddleware("route-middleware", routeMiddleware)
+
+		endpoints := []heimdall.EndpointConfig{
+			{
+				Path:        "/with-middleware",
+				Target:      "http://example.com",
+				Method:      "GET",
+				Middlewares: []string{"route-middleware"},
+			},
+			{
+				Path:   "/without-middleware",
+				Target: "http://example.com",
+				Method: "GET",
+			},
+		}
+
+		router, err := heimdall.NewRouter(endpoints)
+		require.NoError(t, err)
+
+		globalMiddleware := heimdall.NewMiddlewareChain()
+		globalMiddleware.AddFunc(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Global", "true")
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		finalHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		router.ApplyGlobalMiddleware(globalMiddleware, finalHandler)
+
+		withRoute, _ := router.GetRoute("/with-middleware", "GET")
+		req1 := httptest.NewRequest(http.MethodGet, "/with-middleware", nil)
+		rec1 := httptest.NewRecorder()
+
+		withRoute.Handler.ServeHTTP(rec1, req1)
+
+		require.Equal(t, http.StatusOK, rec1.Code)
+		require.Equal(t, "true", rec1.Header().Get("X-Global"))
+		require.Equal(t, "true", rec1.Header().Get("X-Route"))
+
+		withoutRoute, _ := router.GetRoute("/without-middleware", "GET")
+		req2 := httptest.NewRequest(http.MethodGet, "/without-middleware", nil)
+		rec2 := httptest.NewRecorder()
+
+		withoutRoute.Handler.ServeHTTP(rec2, req2)
+
+		require.Equal(t, http.StatusOK, rec2.Code)
+		require.Equal(t, "true", rec2.Header().Get("X-Global"))
+		require.Empty(t, rec2.Header().Get("X-Route"))
+	})
+}
+
+func TestRouter_SetHandler(t *testing.T) {
+	t.Parallel()
+
+	t.Run("it should set a handler for a route", func(t *testing.T) {
+		endpoints := []heimdall.EndpointConfig{
+			{Path: "/test", Target: "http://example.com", Method: "GET"},
+		}
+
+		router, err := heimdall.NewRouter(endpoints)
+		require.NoError(t, err)
+
+		route, exists := router.GetRoute("/test", "GET")
+		require.True(t, exists)
+
+		require.Nil(t, route.Handler)
+
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Handler", "called")
+			w.WriteHeader(http.StatusOK)
+		})
+
+		router.SetHandler(route, handler)
+
+		require.NotNil(t, route.Handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+
+		route.Handler.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Equal(t, "called", rec.Header().Get("X-Handler"))
 	})
 }

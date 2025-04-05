@@ -6,11 +6,14 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/arthurdotwork/alog"
 	"github.com/arthurdotwork/heimdall"
+	"github.com/arthurdotwork/heimdall/middleware"
 )
 
 func main() {
@@ -22,11 +25,17 @@ func main() {
 	configPath := flag.String("config", "config.yaml", "Path to configuration file")
 	flag.Parse()
 
+	// Register default middleware with the global registry
+	middleware.RegisterDefaults()
+
 	gateway, err := heimdall.New(*configPath)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create gateway", "error", err)
 		return
 	}
+
+	// Add a programmatic middleware (not from config)
+	gateway.Use(createCustomMiddleware())
 
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -36,4 +45,23 @@ func main() {
 		slog.ErrorContext(ctx, "failed to start gateway", "error", err)
 		return
 	}
+}
+
+type requestIDKey struct{}
+
+// Example of programmatically creating a custom middleware
+func createCustomMiddleware() heimdall.Middleware {
+	return heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Add a custom request ID
+			requestID := fmt.Sprintf("%d", time.Now().UnixNano())
+			ctx := context.WithValue(r.Context(), requestIDKey{}, requestID)
+
+			// Add request ID to response headers
+			w.Header().Set("X-Request-ID", requestID)
+
+			// Continue with the modified context
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	})
 }
