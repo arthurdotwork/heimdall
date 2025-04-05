@@ -1,4 +1,4 @@
-package heimdall
+package config
 
 import (
 	"os"

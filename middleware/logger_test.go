@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/arthurdotwork/heimdall"
+	internalMiddleware "github.com/arthurdotwork/heimdall/internal/middleware"
 	"github.com/arthurdotwork/heimdall/middleware"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +26,7 @@ func TestLoggerMiddleware(t *testing.T) {
 			w.Write([]byte("OK")) //nolint:errcheck
 		})
 
-		chain := heimdall.NewMiddlewareChain().
+		chain := internalMiddleware.NewMiddlewareChain().
 			Add(middleware.Logger())
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -54,7 +54,7 @@ func TestLoggerMiddleware(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		})
 
-		chain := heimdall.NewMiddlewareChain().
+		chain := internalMiddleware.NewMiddlewareChain().
 			Add(middleware.Logger())
 
 		req := httptest.NewRequest(http.MethodGet, "/not-found", nil)
@@ -78,7 +78,7 @@ func TestLoggerMiddleware(t *testing.T) {
 			w.Write([]byte("Hello, World!")) //nolint:errcheck
 		})
 
-		chain := heimdall.NewMiddlewareChain().
+		chain := internalMiddleware.NewMiddlewareChain().
 			Add(middleware.Logger())
 
 		req := httptest.NewRequest(http.MethodGet, "/size-test", nil)
@@ -103,7 +103,7 @@ func TestLoggerMiddleware(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		chain := heimdall.NewMiddlewareChain().
+		chain := internalMiddleware.NewMiddlewareChain().
 			Add(middleware.Logger())
 
 		req := httptest.NewRequest(http.MethodGet, "/context-test", nil)

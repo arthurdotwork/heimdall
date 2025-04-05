@@ -1,4 +1,4 @@
-package heimdall
+package middleware
 
 import (
 	"net/http"
