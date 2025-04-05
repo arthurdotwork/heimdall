@@ -17,14 +17,14 @@ func TestNewRouter(t *testing.T) {
 	t.Run("it should return an error if it can not parse the target URL", func(t *testing.T) {
 		endpoints := []config.EndpointConfig{{Target: "://invalid"}}
 
-		_, err := router.NewRouter(endpoints)
+		_, err := router.New(endpoints)
 		require.Error(t, err)
 	})
 
 	t.Run("it should build the router", func(t *testing.T) {
 		endpoints := []config.EndpointConfig{{Path: "/", Target: "https://www.google.com/", Method: "GET"}}
 
-		router, err := router.NewRouter(endpoints)
+		router, err := router.New(endpoints)
 		require.NoError(t, err)
 		require.NotNil(t, router)
 		require.NotEmpty(t, router.Routes)
@@ -37,7 +37,7 @@ func TestNewRouter(t *testing.T) {
 	t.Run("it should build router with middleware", func(t *testing.T) {
 		middleware.ResetDefaultRegistry()
 
-		testMiddleware := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		testMiddleware := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Test", "test-value")
 				next.ServeHTTP(w, r)
@@ -55,7 +55,7 @@ func TestNewRouter(t *testing.T) {
 			},
 		}
 
-		router, err := router.NewRouter(endpoints)
+		router, err := router.New(endpoints)
 		require.NoError(t, err)
 		require.NotNil(t, router)
 
@@ -69,7 +69,7 @@ func TestRouter_GetRoute(t *testing.T) {
 	t.Parallel()
 
 	endpoints := []config.EndpointConfig{{Path: "/foo", Method: "GET"}}
-	router, err := router.NewRouter(endpoints)
+	router, err := router.New(endpoints)
 	require.NoError(t, err)
 
 	t.Run("it should return an error if it can not find the route by path", func(t *testing.T) {
@@ -102,10 +102,10 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 			{Path: "/bar", Target: "http://example.com", Method: "POST"},
 		}
 
-		router, err := router.NewRouter(endpoints)
+		router, err := router.New(endpoints)
 		require.NoError(t, err)
 
-		globalMiddleware := middleware.NewMiddlewareChain()
+		globalMiddleware := middleware.NewChain()
 		globalMiddleware.AddFunc(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Global", "true")
@@ -137,7 +137,7 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 	t.Run("it should combine global and route-specific middleware", func(t *testing.T) {
 		middleware.ResetDefaultRegistry()
 
-		routeMiddleware := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		routeMiddleware := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Route", "true")
 				next.ServeHTTP(w, r)
@@ -160,10 +160,10 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 			},
 		}
 
-		router, err := router.NewRouter(endpoints)
+		router, err := router.New(endpoints)
 		require.NoError(t, err)
 
-		globalMiddleware := middleware.NewMiddlewareChain()
+		globalMiddleware := middleware.NewChain()
 		globalMiddleware.AddFunc(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Global", "true")
@@ -207,7 +207,7 @@ func TestRouter_SetHandler(t *testing.T) {
 			{Path: "/test", Target: "http://example.com", Method: "GET"},
 		}
 
-		router, err := router.NewRouter(endpoints)
+		router, err := router.New(endpoints)
 		require.NoError(t, err)
 
 		route, exists := router.GetRoute("/test", "GET")

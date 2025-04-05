@@ -15,23 +15,23 @@ type Route struct {
 	Method         string
 	Headers        map[string][]string
 	AllowedHeaders []string
-	Middleware     []string                    // Middleware names for this route
-	Middlewares    *middleware.MiddlewareChain // Resolved middleware chain
-	Handler        http.Handler                // Final handler after middleware (now exported)
+	Middleware     []string          // Middleware names for this route
+	Middlewares    *middleware.Chain // Resolved middleware chain
+	Handler        http.Handler      // Final handler after middleware (now exported)
 }
 
 type Router struct {
 	// Routes is a map that index the route by path and method.
 	Routes map[string]map[string]*Route
 	// Registry for middleware
-	registry *middleware.MiddlewareRegistry
+	registry *middleware.Registry
 }
 
-func NewRouter(endpoints []config.EndpointConfig) (*Router, error) {
-	return NewRouterWithRegistry(endpoints, middleware.DefaultRegistry())
+func New(endpoints []config.EndpointConfig) (*Router, error) {
+	return NewWithRegistry(endpoints, middleware.DefaultRegistry())
 }
 
-func NewRouterWithRegistry(endpoints []config.EndpointConfig, registry *middleware.MiddlewareRegistry) (*Router, error) {
+func NewWithRegistry(endpoints []config.EndpointConfig, registry *middleware.Registry) (*Router, error) {
 	routes := make(map[string]map[string]*Route)
 
 	for _, endpoint := range endpoints {
@@ -51,7 +51,7 @@ func NewRouterWithRegistry(endpoints []config.EndpointConfig, registry *middlewa
 			Headers:        endpoint.Headers,
 			AllowedHeaders: endpoint.AllowedHeaders,
 			Middleware:     endpoint.Middlewares,
-			Middlewares:    middleware.NewMiddlewareChain(),
+			Middlewares:    middleware.NewChain(),
 		}
 	}
 
@@ -72,8 +72,8 @@ func NewRouterWithRegistry(endpoints []config.EndpointConfig, registry *middlewa
 						"missing", missing)
 				}
 
-				for _, middleware := range middlewares {
-					route.Middlewares.Add(middleware)
+				for _, mw := range middlewares {
+					route.Middlewares.Add(mw)
 				}
 			}
 		}
@@ -102,7 +102,7 @@ func (r *Router) SetHandler(route *Route, handler http.Handler) {
 }
 
 // ApplyGlobalMiddleware applies global middleware to all routes
-func (r *Router) ApplyGlobalMiddleware(middlewareChain *middleware.MiddlewareChain, finalHandler http.Handler) {
+func (r *Router) ApplyGlobalMiddleware(middlewareChain *middleware.Chain, finalHandler http.Handler) {
 	for _, methodRoutes := range r.Routes {
 		for _, route := range methodRoutes {
 			// Clone the global middleware chain

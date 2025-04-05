@@ -15,7 +15,7 @@ func TestMiddlewareChain(t *testing.T) {
 	t.Run("it should apply middleware in the correct order", func(t *testing.T) {
 		var order []string
 
-		middleware1 := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		middleware1 := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				order = append(order, "before_middleware1")
 				next.ServeHTTP(w, r)
@@ -23,7 +23,7 @@ func TestMiddlewareChain(t *testing.T) {
 			})
 		})
 
-		middleware2 := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		middleware2 := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				order = append(order, "before_middleware2")
 				next.ServeHTTP(w, r)
@@ -36,7 +36,7 @@ func TestMiddlewareChain(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		chain := middleware.NewMiddlewareChain().
+		chain := middleware.NewChain().
 			Add(middleware1).
 			Add(middleware2)
 
@@ -58,7 +58,7 @@ func TestMiddlewareChain(t *testing.T) {
 		}, order)
 	})
 
-	t.Run("it should work with MiddlewareFunc", func(t *testing.T) {
+	t.Run("it should work with Func", func(t *testing.T) {
 		var handlerCalled bool
 
 		middlewareFunc := func(next http.Handler) http.Handler {
@@ -73,7 +73,7 @@ func TestMiddlewareChain(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		chain := middleware.NewMiddlewareChain().
+		chain := middleware.NewChain().
 			AddFunc(middlewareFunc)
 
 		handler := chain.Then(final)
@@ -91,14 +91,14 @@ func TestMiddlewareChain(t *testing.T) {
 	t.Run("it should work with ThenFunc", func(t *testing.T) {
 		var handlerCalled bool
 
-		mw := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		mw := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Test", "test-value")
 				next.ServeHTTP(w, r)
 			})
 		})
 
-		chain := middleware.NewMiddlewareChain().
+		chain := middleware.NewChain().
 			Add(mw)
 
 		handler := chain.ThenFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -117,14 +117,14 @@ func TestMiddlewareChain(t *testing.T) {
 	})
 
 	t.Run("it should default to http.DefaultServeMux when no final handler is provided", func(t *testing.T) {
-		mw := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		mw := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Test", "test-value")
 				next.ServeHTTP(w, r)
 			})
 		})
 
-		chain := middleware.NewMiddlewareChain().
+		chain := middleware.NewChain().
 			Add(mw)
 
 		handler := chain.Then(nil)
@@ -133,21 +133,21 @@ func TestMiddlewareChain(t *testing.T) {
 	})
 
 	t.Run("it should create a clone of the middleware chain", func(t *testing.T) {
-		middleware1 := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		middleware1 := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Middleware1", "true")
 				next.ServeHTTP(w, r)
 			})
 		})
 
-		middleware2 := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		middleware2 := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Middleware2", "true")
 				next.ServeHTTP(w, r)
 			})
 		})
 
-		chain1 := middleware.NewMiddlewareChain().Add(middleware1)
+		chain1 := middleware.NewChain().Add(middleware1)
 
 		chain2 := chain1.Clone().Add(middleware2)
 

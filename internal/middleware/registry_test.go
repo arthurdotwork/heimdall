@@ -12,9 +12,9 @@ func TestMiddlewareRegistry(t *testing.T) {
 	t.Parallel()
 
 	t.Run("it should register and retrieve middleware", func(t *testing.T) {
-		registry := middleware.NewMiddlewareRegistry()
+		registry := middleware.NewRegistry()
 
-		mw := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		mw := middleware.Func(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("X-Test", "test-value")
 				next.ServeHTTP(w, r)
@@ -30,9 +30,9 @@ func TestMiddlewareRegistry(t *testing.T) {
 	})
 
 	t.Run("it should prevent duplicate registration", func(t *testing.T) {
-		registry := middleware.NewMiddlewareRegistry()
+		registry := middleware.NewRegistry()
 
-		mw := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		mw := middleware.Func(func(next http.Handler) http.Handler {
 			return next
 		})
 
@@ -45,20 +45,20 @@ func TestMiddlewareRegistry(t *testing.T) {
 	})
 
 	t.Run("it should return false for non-existent middleware", func(t *testing.T) {
-		registry := middleware.NewMiddlewareRegistry()
+		registry := middleware.NewRegistry()
 
 		_, exists := registry.Get("non-existent")
 		require.False(t, exists)
 	})
 
 	t.Run("it should retrieve multiple middleware by name", func(t *testing.T) {
-		registry := middleware.NewMiddlewareRegistry()
+		registry := middleware.NewRegistry()
 
-		middleware1 := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		middleware1 := middleware.Func(func(next http.Handler) http.Handler {
 			return next
 		})
 
-		middleware2 := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		middleware2 := middleware.Func(func(next http.Handler) http.Handler {
 			return next
 		})
 
@@ -77,7 +77,7 @@ func TestMiddlewareRegistry(t *testing.T) {
 		// Note: This is a test-only approach and might need adaptation based on how the default registry is implemented
 		middleware.ResetDefaultRegistry()
 
-		mw := middleware.MiddlewareFunc(func(next http.Handler) http.Handler {
+		mw := middleware.Func(func(next http.Handler) http.Handler {
 			return next
 		})
 

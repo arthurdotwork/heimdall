@@ -5,21 +5,21 @@ import (
 	"sync"
 )
 
-// MiddlewareRegistry is a registry of middleware that can be referenced by name
-type MiddlewareRegistry struct {
+// Registry is a registry of middleware that can be referenced by name
+type Registry struct {
 	mutex       sync.RWMutex
 	middlewares map[string]Middleware
 }
 
-// NewMiddlewareRegistry creates a new middleware registry
-func NewMiddlewareRegistry() *MiddlewareRegistry {
-	return &MiddlewareRegistry{
+// NewRegistry creates a new middleware registry
+func NewRegistry() *Registry {
+	return &Registry{
 		middlewares: make(map[string]Middleware),
 	}
 }
 
 // Register registers a middleware with the registry
-func (r *MiddlewareRegistry) Register(name string, middleware Middleware) error {
+func (r *Registry) Register(name string, middleware Middleware) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -32,7 +32,7 @@ func (r *MiddlewareRegistry) Register(name string, middleware Middleware) error 
 }
 
 // Get retrieves a middleware by name
-func (r *MiddlewareRegistry) Get(name string) (Middleware, bool) {
+func (r *Registry) Get(name string) (Middleware, bool) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -41,7 +41,7 @@ func (r *MiddlewareRegistry) Get(name string) (Middleware, bool) {
 }
 
 // GetMultiple retrieves multiple middleware by name
-func (r *MiddlewareRegistry) GetMultiple(names []string) ([]Middleware, []string) {
+func (r *Registry) GetMultiple(names []string) ([]Middleware, []string) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
@@ -76,20 +76,20 @@ func GetMiddlewares(names []string) ([]Middleware, []string) {
 
 // ResetDefaultRegistry resets the default registry (primarily for testing)
 func ResetDefaultRegistry() {
-	defaultRegistry = NewMiddlewareRegistry()
+	defaultRegistry = NewRegistry()
 }
 
 // DefaultRegistry returns the default middleware registry
-func DefaultRegistry() *MiddlewareRegistry {
+func DefaultRegistry() *Registry {
 	// Use a sync.Once to initialize only once
 	defaultRegistryOnce.Do(func() {
-		defaultRegistry = NewMiddlewareRegistry()
+		defaultRegistry = NewRegistry()
 	})
 	return defaultRegistry
 }
 
 // The actual variable is private
 var (
-	defaultRegistry     *MiddlewareRegistry
+	defaultRegistry     *Registry
 	defaultRegistryOnce sync.Once
 )

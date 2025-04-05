@@ -26,7 +26,7 @@ func TestLoggerMiddleware(t *testing.T) {
 			w.Write([]byte("OK")) //nolint:errcheck
 		})
 
-		chain := internalMiddleware.NewMiddlewareChain().
+		chain := internalMiddleware.NewChain().
 			Add(middleware.Logger())
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -54,7 +54,7 @@ func TestLoggerMiddleware(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 		})
 
-		chain := internalMiddleware.NewMiddlewareChain().
+		chain := internalMiddleware.NewChain().
 			Add(middleware.Logger())
 
 		req := httptest.NewRequest(http.MethodGet, "/not-found", nil)
@@ -78,7 +78,7 @@ func TestLoggerMiddleware(t *testing.T) {
 			w.Write([]byte("Hello, World!")) //nolint:errcheck
 		})
 
-		chain := internalMiddleware.NewMiddlewareChain().
+		chain := internalMiddleware.NewChain().
 			Add(middleware.Logger())
 
 		req := httptest.NewRequest(http.MethodGet, "/size-test", nil)
@@ -103,7 +103,7 @@ func TestLoggerMiddleware(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		chain := internalMiddleware.NewMiddlewareChain().
+		chain := internalMiddleware.NewChain().
 			Add(middleware.Logger())
 
 		req := httptest.NewRequest(http.MethodGet, "/context-test", nil)

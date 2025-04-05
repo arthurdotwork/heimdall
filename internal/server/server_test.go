@@ -22,7 +22,7 @@ func TestServer_Start(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		server := server.NewServer(config.GatewayConfig{Port: 8081}, handler)
+		server := server.New(config.GatewayConfig{Port: 8081}, handler)
 
 		// We start the server in a goroutine
 		done := make(chan error, 1)
@@ -52,7 +52,7 @@ func TestServer_Start(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		server := server.NewServer(config.GatewayConfig{Port: 8082}, handler)
+		server := server.New(config.GatewayConfig{Port: 8082}, handler)
 
 		startTime := time.Now()
 		err := server.Start(ctx)
@@ -78,7 +78,7 @@ func TestServer_Start(t *testing.T) {
 			}
 		})
 
-		server := server.NewServer(config.GatewayConfig{Port: 8083, ShutdownTimeout: 2 * time.Second}, handler)
+		server := server.New(config.GatewayConfig{Port: 8083, ShutdownTimeout: 2 * time.Second}, handler)
 
 		serverDone := make(chan error, 1)
 		go func() {
