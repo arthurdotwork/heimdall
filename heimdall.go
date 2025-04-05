@@ -17,10 +17,10 @@ import (
 type Gateway struct {
 	config            *config.Config
 	router            *router.Router
-	proxy             *proxy.ProxyHandler
+	proxy             *proxy.Handler
 	server            *server.Server
-	globalMiddlewares *internalMiddleware.MiddlewareChain
-	registry          *internalMiddleware.MiddlewareRegistry
+	globalMiddlewares *internalMiddleware.Chain
+	registry          *internalMiddleware.Registry
 }
 
 // Config exposes configuration types to public API
@@ -47,23 +47,23 @@ func New(configPath string) (*Gateway, error) {
 }
 
 // NewWithRegistry creates a new gateway with a custom middleware registry
-func NewWithRegistry(configPath string, registry *internalMiddleware.MiddlewareRegistry) (*Gateway, error) {
+func NewWithRegistry(configPath string, registry *internalMiddleware.Registry) (*Gateway, error) {
 	cfg, err := config.LoadFromFile(configPath)
 	if err != nil {
 		return nil, err
 	}
 	cfg = cfg.WithDefaults()
 
-	r, err := router.NewRouterWithRegistry(cfg.Endpoints, registry)
+	r, err := router.NewWithRegistry(cfg.Endpoints, registry)
 	if err != nil {
 		return nil, err
 	}
 
-	p := proxy.NewProxyHandler(r)
-	s := server.NewServer(cfg.Gateway, p)
+	p := proxy.NewHandler(r)
+	s := server.New(cfg.Gateway, p)
 
 	// Initialize global middleware
-	globalMiddlewares := internalMiddleware.NewMiddlewareChain()
+	globalMiddlewares := internalMiddleware.NewChain()
 
 	// Add global middleware from config
 	if len(cfg.Gateway.Middlewares) > 0 {
@@ -126,7 +126,7 @@ func (g *Gateway) GetMiddleware(name string) (Middleware, bool) {
 }
 
 // defaultRegistry is the default middleware registry
-var defaultRegistry = internalMiddleware.NewMiddlewareRegistry()
+var defaultRegistry = internalMiddleware.NewRegistry()
 
 // RegisterMiddleware registers a middleware with the default registry
 func RegisterMiddleware(name string, middleware Middleware) error {
@@ -135,7 +135,7 @@ func RegisterMiddleware(name string, middleware Middleware) error {
 
 // ResetDefaultRegistry resets the default registry (primarily for testing)
 func ResetDefaultRegistry() {
-	defaultRegistry = internalMiddleware.NewMiddlewareRegistry()
+	defaultRegistry = internalMiddleware.NewRegistry()
 }
 
 // LoadFromFile loads configuration from a file

@@ -13,18 +13,18 @@ import (
 
 const defaultUserAgent = "Heimdall/0.1"
 
-type ProxyRouter interface {
+type Router interface {
 	GetRoute(path, method string) (*router.Route, bool)
-	ApplyGlobalMiddleware(middlewareChain *middleware.MiddlewareChain, finalHandler http.Handler)
+	ApplyGlobalMiddleware(middlewareChain *middleware.Chain, finalHandler http.Handler)
 }
 
-type ProxyHandler struct {
-	router    ProxyRouter
+type Handler struct {
+	router    Router
 	proxyFunc func(target *url.URL) *httputil.ReverseProxy
 }
 
-func NewProxyHandler(router ProxyRouter) *ProxyHandler {
-	return &ProxyHandler{
+func NewHandler(router Router) *Handler {
+	return &Handler{
 		router: router,
 		proxyFunc: func(target *url.URL) *httputil.ReverseProxy {
 			return httputil.NewSingleHostReverseProxy(target)
@@ -32,7 +32,7 @@ func NewProxyHandler(router ProxyRouter) *ProxyHandler {
 	}
 }
 
-func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (p *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	select {
 	case <-req.Context().Done():
 		w.Header().Set("Connection", "close")
@@ -59,7 +59,7 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 // InitializeRouteHandlers initializes handlers for all routes with middleware
-func (p *ProxyHandler) InitializeRouteHandlers(globalMiddleware *middleware.MiddlewareChain) {
+func (p *Handler) InitializeRouteHandlers(globalMiddleware *middleware.Chain) {
 	p.router.ApplyGlobalMiddleware(globalMiddleware, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		route, ok := p.router.GetRoute(req.URL.Path, req.Method)
 		if !ok {
@@ -71,7 +71,7 @@ func (p *ProxyHandler) InitializeRouteHandlers(globalMiddleware *middleware.Midd
 	}))
 }
 
-func (p *ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, route *router.Route) {
+func (p *Handler) proxyRequest(w http.ResponseWriter, req *http.Request, route *router.Route) {
 	// Create a new URL based on the target
 	targetURL := &url.URL{
 		Scheme:   route.Target.Scheme,
@@ -109,7 +109,7 @@ func (p *ProxyHandler) proxyRequest(w http.ResponseWriter, req *http.Request, ro
 	proxy.ServeHTTP(w, req)
 }
 
-func (p *ProxyHandler) processHeaders(req *http.Request, route *router.Route) {
+func (p *Handler) processHeaders(req *http.Request, route *router.Route) {
 	allowedHeaderValues := make(map[string][]string)
 	for _, allowedHeader := range route.AllowedHeaders {
 		if values, exists := req.Header[allowedHeader]; exists {

@@ -163,7 +163,7 @@ func TestNew(t *testing.T) {
 
 		// Get the global middleware chain from gateway (requires unexported access)
 		// Since we can't directly access this, we'll create our own chain for testing
-		globalChain := middleware.NewMiddlewareChain()
+		globalChain := middleware.NewChain()
 		globalChain.Add(globalMiddleware)
 
 		// Add endpoint middleware
@@ -192,7 +192,7 @@ func TestNewWithRegistry(t *testing.T) {
 
 	t.Run("it should initialize gateway with custom registry", func(t *testing.T) {
 		// Create a custom registry
-		registry := middleware.NewMiddlewareRegistry()
+		registry := middleware.NewRegistry()
 
 		// Register test middleware
 		testMiddleware := heimdall.MiddlewareFunc(func(next http.Handler) http.Handler {
@@ -233,7 +233,7 @@ func TestNewWithRegistry(t *testing.T) {
 	})
 
 	t.Run("it should handle missing middleware", func(t *testing.T) {
-		registry := middleware.NewMiddlewareRegistry()
+		registry := middleware.NewRegistry()
 
 		config := map[string]any{
 			"gateway": map[string]any{

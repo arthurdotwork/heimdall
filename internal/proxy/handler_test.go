@@ -38,7 +38,7 @@ func (m *mockRouter) GetRoute(path, method string) (*router.Route, bool) {
 	return nil, false
 }
 
-func (m *mockRouter) ApplyGlobalMiddleware(middlewareChain *middleware.MiddlewareChain, finalHandler http.Handler) {
+func (m *mockRouter) ApplyGlobalMiddleware(middlewareChain *middleware.Chain, finalHandler http.Handler) {
 	for _, methodRoutes := range m.routes {
 		for _, route := range methodRoutes {
 			route.Handler = middlewareChain.Then(finalHandler)
@@ -52,7 +52,7 @@ func TestProxyHandler_Serve(t *testing.T) {
 	t.Run("it should return an error if the route is not found", func(t *testing.T) {
 		mockRouter := &mockRouter{}
 
-		proxy := proxy.NewProxyHandler(mockRouter)
+		proxy := proxy.NewHandler(mockRouter)
 
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		recorder := httptest.NewRecorder()
@@ -66,7 +66,7 @@ func TestProxyHandler_Serve(t *testing.T) {
 		mockRouter := &mockRouter{}
 		mockRouter.addRoute("/test", http.MethodGet, &router.Route{})
 
-		proxy := proxy.NewProxyHandler(mockRouter)
+		proxy := proxy.NewHandler(mockRouter)
 		req := httptest.NewRequest(http.MethodPost, "/test", nil)
 		recorder := httptest.NewRecorder()
 
@@ -108,7 +108,7 @@ func TestProxyHandler_Serve(t *testing.T) {
 			AllowedHeaders: []string{"X-Forwarded-Header"},
 		})
 
-		proxy := proxy.NewProxyHandler(mockRouter)
+		proxy := proxy.NewHandler(mockRouter)
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("X-Forwarded-Header", "forwarded-value")
 		req.Header.Set("X-Forbidden-Header", "forbidden-value")
@@ -128,7 +128,7 @@ func TestProxyHandler_Serve(t *testing.T) {
 		})
 
 		// Create the proxy handler
-		proxy := proxy.NewProxyHandler(mockRouter)
+		proxy := proxy.NewHandler(mockRouter)
 
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
@@ -148,7 +148,7 @@ func TestProxyHandler_Serve(t *testing.T) {
 			Method: http.MethodGet,
 		})
 
-		proxy := proxy.NewProxyHandler(mockRouter)
+		proxy := proxy.NewHandler(mockRouter)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
@@ -185,7 +185,7 @@ func TestProxyHandler_Serve(t *testing.T) {
 			Method: http.MethodGet,
 		})
 
-		proxy := proxy.NewProxyHandler(mockRouter)
+		proxy := proxy.NewHandler(mockRouter)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/test", nil)
@@ -219,13 +219,13 @@ func TestProxyHandler_Serve(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		middlewareChain := middleware.NewMiddlewareChain()
+		middlewareChain := middleware.NewChain()
 
 		route.Handler = middlewareChain.Then(customHandler)
 
 		mockRouter.addRoute("/custom", http.MethodGet, route)
 
-		proxy := proxy.NewProxyHandler(mockRouter)
+		proxy := proxy.NewHandler(mockRouter)
 
 		req := httptest.NewRequest(http.MethodGet, "/custom", nil)
 		rec := httptest.NewRecorder()
@@ -259,16 +259,16 @@ func TestProxyHandler_Serve(t *testing.T) {
 		route := &router.Route{
 			Target:         backendURL,
 			Method:         http.MethodGet,
-			Middlewares:    middleware.NewMiddlewareChain(),
+			Middlewares:    middleware.NewChain(),
 			AllowedHeaders: []string{"X-Echo-Global-Middleware"}, // Allow our test header!
 		}
 		mockRouter.addRoute("/test", http.MethodGet, route)
 
 		// Create the proxy handler
-		proxy := proxy.NewProxyHandler(mockRouter)
+		proxy := proxy.NewHandler(mockRouter)
 
 		// Create middleware that adds headers to the request
-		middlewareChain := middleware.NewMiddlewareChain()
+		middlewareChain := middleware.NewChain()
 		middlewareChain.AddFunc(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// Add a header that will be forwarded to the backend

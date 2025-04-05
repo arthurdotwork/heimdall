@@ -16,14 +16,14 @@ import (
 type Server struct {
 	cfg         config.GatewayConfig
 	handler     http.Handler
-	middlewares *middleware.MiddlewareChain
+	middlewares *middleware.Chain
 }
 
-func NewServer(cfg config.GatewayConfig, handler http.Handler) *Server {
+func New(cfg config.GatewayConfig, handler http.Handler) *Server {
 	return &Server{
 		cfg:         cfg,
 		handler:     handler,
-		middlewares: middleware.NewMiddlewareChain(),
+		middlewares: middleware.NewChain(),
 	}
 }
 

@@ -19,7 +19,7 @@ func TestCORSMiddleware(t *testing.T) {
 		})
 
 		corsMiddleware := middleware.CORS(nil)
-		chain := internalMiddleware.NewMiddlewareChain().Add(corsMiddleware)
+		chain := internalMiddleware.NewChain().Add(corsMiddleware)
 		finalHandler := chain.Then(handler)
 
 		req := httptest.NewRequest(http.MethodOptions, "/", nil)
@@ -44,7 +44,7 @@ func TestCORSMiddleware(t *testing.T) {
 			AllowCredentials: true,
 		}
 		corsMiddleware := middleware.CORS(config)
-		chain := internalMiddleware.NewMiddlewareChain().Add(corsMiddleware)
+		chain := internalMiddleware.NewChain().Add(corsMiddleware)
 		finalHandler := chain.Then(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -65,7 +65,7 @@ func TestCORSMiddleware(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		chain := internalMiddleware.NewMiddlewareChain().Add(corsMiddleware)
+		chain := internalMiddleware.NewChain().Add(corsMiddleware)
 		finalHandler := chain.Then(handler)
 
 		req := httptest.NewRequest(http.MethodOptions, "/", nil)

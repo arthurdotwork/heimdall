@@ -15,7 +15,7 @@ func RegisterDefaults() {
 }
 
 // Register registers the middleware with a custom registry
-func Register(registry *middleware.MiddlewareRegistry) {
+func Register(registry *middleware.Registry) {
 	// Register Logger middleware
 	_ = registry.Register("logger", Logger())
 
