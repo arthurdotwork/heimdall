@@ -9,6 +9,8 @@ endpoints:
     target: https://httpbin.org/get
     method: GET
     headers:
-      X-My-Header: MyValue
+      X-My-Header:
+        - MyValue
+        - AnotherValue
     allowed_headers:
       - X-Another-Header
