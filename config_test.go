@@ -13,6 +13,7 @@ import (
 func createTempConfig(t *testing.T, config map[string]any) string {
 	file, err := os.CreateTemp("", "config-*.yaml")
 	require.NoError(t, err)
+	defer file.Close() //nolint:errcheck
 
 	yamlMarshalled, err := yaml.Marshal(config)
 	require.NoError(t, err)
