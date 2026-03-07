@@ -30,3 +30,8 @@ endpoints:
     method: GET
     middlewares:
       - basicAuth
+
+  - name: UserByID
+    path: /users/:id
+    target: https://httpbin.org/bytes/:id
+    method: GET

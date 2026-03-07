@@ -6,15 +6,17 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 
 	"github.com/arthurdotwork/heimdall/internal/middleware"
+	"github.com/arthurdotwork/heimdall/internal/params"
 	"github.com/arthurdotwork/heimdall/internal/router"
 )
 
 const defaultUserAgent = "Heimdall/0.1"
 
 type Router interface {
-	GetRoute(path, method string) (*router.Route, bool)
+	GetRoute(path, method string) (*router.Route, map[string]string, bool)
 	ApplyGlobalMiddleware(middlewareChain *middleware.Chain, finalHandler http.Handler)
 }
 
@@ -42,11 +44,15 @@ func (p *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		// normal processing..
 	}
 
-	route, ok := p.router.GetRoute(req.URL.Path, req.Method)
+	route, matchedParams, ok := p.router.GetRoute(req.URL.Path, req.Method)
 	if !ok {
 		http.Error(w, "Route Not Found", http.StatusNotFound)
 		return
 	}
+
+	// Store matched params in context
+	ctx := params.WithParams(req.Context(), matchedParams)
+	req = req.WithContext(ctx)
 
 	// If the route has a handler (with middleware), use it
 	if route.Handler != nil {
@@ -61,11 +67,15 @@ func (p *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // InitializeRouteHandlers initializes handlers for all routes with middleware
 func (p *Handler) InitializeRouteHandlers(globalMiddleware *middleware.Chain) {
 	p.router.ApplyGlobalMiddleware(globalMiddleware, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		route, ok := p.router.GetRoute(req.URL.Path, req.Method)
+		route, matchedParams, ok := p.router.GetRoute(req.URL.Path, req.Method)
 		if !ok {
 			http.Error(w, "Route Not Found", http.StatusNotFound)
 			return
 		}
+
+		// Store params in context (may already be there from ServeHTTP, but re-store for safety)
+		ctx := params.WithParams(req.Context(), matchedParams)
+		req = req.WithContext(ctx)
 
 		p.proxyRequest(w, req, route)
 	}))
@@ -89,6 +99,21 @@ func (p *Handler) proxyRequest(w http.ResponseWriter, req *http.Request, route *
 		originalDirector(req)
 		req.Host = targetURL.Host
 		req.URL.Path = targetURL.Path
+
+		// Substitute :param tokens in target path if present
+		if strings.Contains(targetURL.Path, ":") {
+			pathParams := params.GetParams(req.Context())
+			parts := strings.Split(targetURL.Path, "/")
+			for i, part := range parts {
+				if strings.HasPrefix(part, ":") {
+					paramName := strings.TrimPrefix(part, ":")
+					if val, ok := pathParams[paramName]; ok {
+						parts[i] = val
+					}
+				}
+			}
+			req.URL.Path = strings.Join(parts, "/")
+		}
 
 		// Process headers
 		p.processHeaders(req, route)

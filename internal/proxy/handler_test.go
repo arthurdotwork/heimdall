@@ -9,13 +9,15 @@ import (
 	"time"
 
 	"github.com/arthurdotwork/heimdall/internal/middleware"
+	"github.com/arthurdotwork/heimdall/internal/params"
 	"github.com/arthurdotwork/heimdall/internal/proxy"
 	"github.com/arthurdotwork/heimdall/internal/router"
 	"github.com/stretchr/testify/require"
 )
 
 type mockRouter struct {
-	routes map[string]map[string]*router.Route
+	routes      map[string]map[string]*router.Route
+	routeParams map[string]map[string]map[string]string // path -> method -> params
 }
 
 func (m *mockRouter) addRoute(path, method string, route *router.Route) {
@@ -30,12 +32,38 @@ func (m *mockRouter) addRoute(path, method string, route *router.Route) {
 	m.routes[path][method] = route
 }
 
-func (m *mockRouter) GetRoute(path, method string) (*router.Route, bool) {
-	if route, ok := m.routes[path][method]; ok {
-		return route, true
+func (m *mockRouter) addRouteParams(path, method string, p map[string]string) {
+	if m.routeParams == nil {
+		m.routeParams = make(map[string]map[string]map[string]string)
 	}
+	if m.routeParams[path] == nil {
+		m.routeParams[path] = make(map[string]map[string]string)
+	}
+	m.routeParams[path][method] = p
+}
 
-	return nil, false
+func (m *mockRouter) GetRoute(path, method string) (*router.Route, map[string]string, bool) {
+	if m.routes == nil {
+		return nil, nil, false
+	}
+	methodRoutes, ok := m.routes[path]
+	if !ok {
+		return nil, nil, false
+	}
+	route, ok := methodRoutes[method]
+	if !ok {
+		return nil, nil, false
+	}
+	var p map[string]string
+	if m.routeParams != nil {
+		if methodParams, ok := m.routeParams[path]; ok {
+			p = methodParams[method]
+		}
+	}
+	if p == nil {
+		p = map[string]string{}
+	}
+	return route, p, true
 }
 
 func (m *mockRouter) ApplyGlobalMiddleware(middlewareChain *middleware.Chain, finalHandler http.Handler) {
@@ -296,5 +324,152 @@ func TestProxyHandler_Serve(t *testing.T) {
 		// Check that our middleware header was passed to the backend and echoed back
 		require.Equal(t, "true", rec.Header().Get("X-Echo-Global-Middleware"),
 			"Middleware header should be passed to backend and echoed back")
+	})
+}
+
+func TestProxyHandler_ParamContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("it should store matched params in request context", func(t *testing.T) {
+		// Verify params are stored in context when a route with params is matched
+		var capturedParams map[string]string
+
+		targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer targetServer.Close()
+
+		targetURL, _ := url.Parse(targetServer.URL)
+
+		// Create a mockRouter that returns params
+		mockR := &mockRouter{}
+		route := &router.Route{
+			Target:      targetURL,
+			Method:      http.MethodGet,
+			Middlewares: middleware.NewChain(),
+		}
+		mockR.addRoute("/users/42", http.MethodGet, route)
+		mockR.addRouteParams("/users/42", http.MethodGet, map[string]string{"id": "42"})
+
+		// Add middleware that captures the params from context
+		middlewareChain := middleware.NewChain()
+		middlewareChain.AddFunc(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedParams = params.GetParams(r.Context())
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		h := proxy.NewHandler(mockR)
+		h.InitializeRouteHandlers(middlewareChain)
+
+		req := httptest.NewRequest(http.MethodGet, "/users/42", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		require.Equal(t, map[string]string{"id": "42"}, capturedParams)
+	})
+}
+
+func TestProxyRequest_ParamSubstitution(t *testing.T) {
+	t.Parallel()
+
+	t.Run("it should substitute :param tokens in target path", func(t *testing.T) {
+		var backendPath string
+
+		targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			backendPath = r.URL.Path
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer targetServer.Close()
+
+		targetURL, _ := url.Parse(targetServer.URL + "/users/:id")
+
+		mockR := &mockRouter{}
+		route := &router.Route{
+			Target:      targetURL,
+			Method:      http.MethodGet,
+			Middlewares: middleware.NewChain(),
+		}
+		mockR.addRoute("/users/42", http.MethodGet, route)
+		mockR.addRouteParams("/users/42", http.MethodGet, map[string]string{"id": "42"})
+
+		h := proxy.NewHandler(mockR)
+
+		req := httptest.NewRequest(http.MethodGet, "/users/42", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		require.Equal(t, "/users/42", backendPath)
+	})
+
+	t.Run("it should leave target path unchanged when no :param tokens", func(t *testing.T) {
+		var backendPath string
+
+		targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			backendPath = r.URL.Path
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer targetServer.Close()
+
+		targetURL, _ := url.Parse(targetServer.URL + "/api")
+
+		mockR := &mockRouter{}
+		route := &router.Route{
+			Target:      targetURL,
+			Method:      http.MethodGet,
+			Middlewares: middleware.NewChain(),
+		}
+		mockR.addRoute("/api", http.MethodGet, route)
+		mockR.addRouteParams("/api", http.MethodGet, map[string]string{})
+
+		h := proxy.NewHandler(mockR)
+
+		req := httptest.NewRequest(http.MethodGet, "/api", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		require.Equal(t, "/api", backendPath)
+	})
+}
+
+func TestProxyHandler_ExactRouteEmptyParams(t *testing.T) {
+	t.Parallel()
+
+	t.Run("it should store empty params map in context for exact-match routes", func(t *testing.T) {
+		var capturedParams map[string]string
+
+		targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer targetServer.Close()
+
+		targetURL, _ := url.Parse(targetServer.URL)
+
+		mockR := &mockRouter{}
+		route := &router.Route{
+			Target:      targetURL,
+			Method:      http.MethodGet,
+			Middlewares: middleware.NewChain(),
+		}
+		mockR.addRoute("/test", http.MethodGet, route)
+		mockR.addRouteParams("/test", http.MethodGet, map[string]string{})
+
+		middlewareChain := middleware.NewChain()
+		middlewareChain.AddFunc(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedParams = params.GetParams(r.Context())
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		h := proxy.NewHandler(mockR)
+		h.InitializeRouteHandlers(middlewareChain)
+
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+
+		require.Equal(t, map[string]string{}, capturedParams)
 	})
 }

@@ -59,7 +59,7 @@ func TestNewRouter(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, router)
 
-		route, exists := router.GetRoute("/", "GET")
+		route, _, exists := router.GetRoute("/", "GET")
 		require.True(t, exists)
 		require.Equal(t, []string{"test-middleware"}, route.Middleware)
 	})
@@ -73,19 +73,19 @@ func TestRouter_GetRoute(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("it should return an error if it can not find the route by path", func(t *testing.T) {
-		route, ok := router.GetRoute("/bar", "GET")
+		route, _, ok := router.GetRoute("/bar", "GET")
 		require.False(t, ok)
 		require.Nil(t, route)
 	})
 
 	t.Run("it should return an error if it can not find the route by method", func(t *testing.T) {
-		route, ok := router.GetRoute("/foo", "POST")
+		route, _, ok := router.GetRoute("/foo", "POST")
 		require.False(t, ok)
 		require.Nil(t, route)
 	})
 
 	t.Run("it should return the route", func(t *testing.T) {
-		route, ok := router.GetRoute("/foo", "GET")
+		route, _, ok := router.GetRoute("/foo", "GET")
 		require.True(t, ok)
 		require.NotNil(t, route)
 		require.Equal(t, "/foo", route.OriginalPath)
@@ -119,10 +119,10 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 
 		router.ApplyGlobalMiddleware(globalMiddleware, finalHandler)
 
-		fooRoute, _ := router.GetRoute("/foo", "GET")
+		fooRoute, _, _ := router.GetRoute("/foo", "GET")
 		require.NotNil(t, fooRoute.Handler)
 
-		barRoute, _ := router.GetRoute("/bar", "POST")
+		barRoute, _, _ := router.GetRoute("/bar", "POST")
 		require.NotNil(t, barRoute.Handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/foo", nil)
@@ -177,7 +177,7 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 
 		router.ApplyGlobalMiddleware(globalMiddleware, finalHandler)
 
-		withRoute, _ := router.GetRoute("/with-middleware", "GET")
+		withRoute, _, _ := router.GetRoute("/with-middleware", "GET")
 		req1 := httptest.NewRequest(http.MethodGet, "/with-middleware", nil)
 		rec1 := httptest.NewRecorder()
 
@@ -187,7 +187,7 @@ func TestRouter_ApplyGlobalMiddleware(t *testing.T) {
 		require.Equal(t, "true", rec1.Header().Get("X-Global"))
 		require.Equal(t, "true", rec1.Header().Get("X-Route"))
 
-		withoutRoute, _ := router.GetRoute("/without-middleware", "GET")
+		withoutRoute, _, _ := router.GetRoute("/without-middleware", "GET")
 		req2 := httptest.NewRequest(http.MethodGet, "/without-middleware", nil)
 		rec2 := httptest.NewRecorder()
 
@@ -210,7 +210,7 @@ func TestRouter_SetHandler(t *testing.T) {
 		router, err := router.New(endpoints)
 		require.NoError(t, err)
 
-		route, exists := router.GetRoute("/test", "GET")
+		route, _, exists := router.GetRoute("/test", "GET")
 		require.True(t, exists)
 
 		require.Nil(t, route.Handler)
@@ -231,5 +231,116 @@ func TestRouter_SetHandler(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rec.Code)
 		require.Equal(t, "called", rec.Header().Get("X-Handler"))
+	})
+}
+
+
+func TestNewRouter_ParameterizedRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("it should create router with parameterized route", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{{Path: "/users/:id", Target: "http://example.com", Method: "GET"}}
+		r, err := router.New(endpoints)
+		require.NoError(t, err)
+		require.NotNil(t, r)
+	})
+
+	t.Run("it should return error for duplicate param names", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{{Path: "/users/:id/posts/:id", Target: "http://example.com", Method: "GET"}}
+		_, err := router.New(endpoints)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "duplicate")
+	})
+
+	t.Run("it should return error for wildcard pattern", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{{Path: "/api/*", Target: "http://example.com", Method: "GET"}}
+		_, err := router.New(endpoints)
+		require.Error(t, err)
+	})
+}
+
+func TestRouter_GetRouteWithParams(t *testing.T) {
+	t.Parallel()
+
+	t.Run("it should match parameterized route with single param", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{{Path: "/users/:id", Target: "http://example.com", Method: "GET"}}
+		r, err := router.New(endpoints)
+		require.NoError(t, err)
+
+		route, params, ok := r.GetRoute("/users/42", "GET")
+		require.True(t, ok)
+		require.NotNil(t, route)
+		require.Equal(t, map[string]string{"id": "42"}, params)
+	})
+
+	t.Run("it should match parameterized route with multiple params", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{{Path: "/users/:id/posts/:postId", Target: "http://example.com", Method: "GET"}}
+		r, err := router.New(endpoints)
+		require.NoError(t, err)
+
+		route, params, ok := r.GetRoute("/users/42/posts/7", "GET")
+		require.True(t, ok)
+		require.NotNil(t, route)
+		require.Equal(t, map[string]string{"id": "42", "postId": "7"}, params)
+	})
+
+	t.Run("it should return false for no match", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{{Path: "/users/:id", Target: "http://example.com", Method: "GET"}}
+		r, err := router.New(endpoints)
+		require.NoError(t, err)
+
+		route, params, ok := r.GetRoute("/posts/42", "GET")
+		require.False(t, ok)
+		require.Nil(t, route)
+		require.Nil(t, params)
+	})
+
+	t.Run("it should return false for segment count mismatch", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{{Path: "/users/:id", Target: "http://example.com", Method: "GET"}}
+		r, err := router.New(endpoints)
+		require.NoError(t, err)
+
+		route, params, ok := r.GetRoute("/users/42/extra", "GET")
+		require.False(t, ok)
+		require.Nil(t, route)
+		require.Nil(t, params)
+	})
+
+	t.Run("it should return false for wrong method", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{{Path: "/users/:id", Target: "http://example.com", Method: "GET"}}
+		r, err := router.New(endpoints)
+		require.NoError(t, err)
+
+		route, params, ok := r.GetRoute("/users/42", "POST")
+		require.False(t, ok)
+		require.Nil(t, route)
+		require.Nil(t, params)
+	})
+}
+
+func TestRouter_ExactMatchPriority(t *testing.T) {
+	t.Parallel()
+
+	t.Run("it should prefer exact match over parameterized match", func(t *testing.T) {
+		endpoints := []config.EndpointConfig{
+			{Path: "/users/new", Target: "http://exact.com", Method: "GET"},
+			{Path: "/users/:id", Target: "http://param.com", Method: "GET"},
+		}
+		r, err := router.New(endpoints)
+		require.NoError(t, err)
+
+		// Exact route should be preferred
+		route, params, ok := r.GetRoute("/users/new", "GET")
+		require.True(t, ok)
+		require.NotNil(t, route)
+		require.Equal(t, "/users/new", route.OriginalPath)
+		require.Empty(t, params)
+
+		// Param route should still work for other paths
+		route2, params2, ok2 := r.GetRoute("/users/42", "GET")
+		require.True(t, ok2)
+		require.NotNil(t, route2)
+		require.Equal(t, "/users/:id", route2.OriginalPath)
+		require.Equal(t, map[string]string{"id": "42"}, params2)
 	})
 }

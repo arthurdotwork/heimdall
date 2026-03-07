@@ -4,8 +4,10 @@ package heimdall
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/arthurdotwork/heimdall/internal/config"
+	iparams "github.com/arthurdotwork/heimdall/internal/params"
 	internalMiddleware "github.com/arthurdotwork/heimdall/internal/middleware"
 	"github.com/arthurdotwork/heimdall/internal/proxy"
 	"github.com/arthurdotwork/heimdall/internal/router"
@@ -125,4 +127,16 @@ func RegisterMiddleware(name string, middleware Middleware) error {
 // LoadFromFile loads configuration from a file
 func LoadFromFile(path string) (*Config, error) {
 	return config.LoadFromFile(path)
+}
+
+// PathParam returns the value of a named path parameter from the request context.
+// Returns an empty string if the parameter is not found.
+func PathParam(r *http.Request, name string) string {
+	return iparams.GetParam(r.Context(), name)
+}
+
+// PathParams returns all path parameters captured from the URL pattern match.
+// Returns nil if no path parameters are in the request context.
+func PathParams(r *http.Request) map[string]string {
+	return iparams.GetParams(r.Context())
 }
